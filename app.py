@@ -51,13 +51,23 @@ def api_reports():
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
     body = request.get_json(silent=True) or {}
-    blocks = body.get("blocks") or DEFAULT_BLOCKS
     crop = body.get("crop")
-    _cache.clear()
+    key = f"r:{','.join(DEFAULT_BLOCKS)}:{crop or 'g'}"
+
+    # Cache hit — return immediately, no pipeline re-run
+    reports = cget(key)
+    if reports:
+        return jsonify({"status": "ok", "source": "cache", "count": len(reports)})
+
+    # Cache miss — run pipeline once
     t0 = time.time()
-    reports = run_pipeline(blocks, crop=crop)
-    cset(f"r:{','.join(blocks)}:{crop or 'g'}", reports)
-    return jsonify({"status": "ok", "elapsed_sec": round(time.time()-t0, 2), "count": len(reports)})
+    reports = run_pipeline(DEFAULT_BLOCKS, crop=crop)
+    cset(key, reports)
+    return jsonify({
+        "status": "ok", "source": "fresh",
+        "elapsed_sec": round(time.time() - t0, 2),
+        "count": len(reports),
+    })
 
 @app.route("/plots/<path:f>")
 def plots(f):
