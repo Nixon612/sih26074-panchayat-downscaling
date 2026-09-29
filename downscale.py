@@ -12,7 +12,6 @@ FEATURE_PATH = "models/feature_columns.json"
 OUT_CSV = "data/processed/panchayat_downscaled.csv"
 PLOT_DIR = "static/plots"
 
-# Change this if you switch districts
 DISTRICT_LABEL = "Kamrup District, Assam"
 
 TARGETS = ["rainfall", "tmax", "tmin", "rh", "wind_speed", "solar_radiation"]
@@ -41,6 +40,11 @@ def engineer_features(df, cols):
 
 
 def idw(lons, lats, vals, glon, glat, power=2.0):
+    # Flat-field guard: if input has no meaningful variation, return a constant
+    # field. Prevents IDW from amplifying floating-point noise into fake contours.
+    if np.std(vals) < 1e-6:
+        return np.full((len(glat), len(glon)), float(np.mean(vals)))
+
     gl, gt = np.meshgrid(glon, glat)
     fl, ft = gl.ravel(), gt.ravel()
     d = np.sqrt((fl[:, None] - lons[None, :]) ** 2 + (ft[:, None] - lats[None, :]) ** 2)
@@ -54,12 +58,24 @@ def plot_contour(df, glon, glat, gz, var, out):
     cmap_name, label = META[var]
     cmap = plt.get_cmap(cmap_name)
     fig, ax = plt.subplots(figsize=(7.5, 6), dpi=130)
-    cf = ax.contourf(glon, glat, gz, levels=14, cmap=cmap, alpha=0.95)
-    ax.contour(glon, glat, gz, levels=14, colors="k", linewidths=0.35, alpha=0.5)
 
+    # Guard against constant fields — contourf needs varying levels
+    if np.ptp(gz) < 1e-9:
+        # Single flat color with no contours
+        ax.imshow(gz, extent=[glon.min(), glon.max(), glat.min(), glat.max()],
+                  origin="lower", cmap=cmap, aspect="auto",
+                  vmin=gz.min() - 1e-6, vmax=gz.max() + 1e-6)
+        cf = None
+    else:
+        cf = ax.contourf(glon, glat, gz, levels=14, cmap=cmap, alpha=0.95)
+        ax.contour(glon, glat, gz, levels=14, colors="k",
+                   linewidths=0.35, alpha=0.5)
+
+    # Panchayat points
     ax.scatter(df["lon"], df["lat"], s=10, c="white", edgecolor="black",
                linewidth=0.4, zorder=3)
 
+    # Label top-5 highest-elevation panchayats
     if "panchayat_name" in df.columns:
         top = df.nlargest(5, "elevation")
         for _, row in top.iterrows():
@@ -69,11 +85,17 @@ def plot_contour(df, glon, glat, gz, var, out):
                         bbox=dict(boxstyle="round,pad=0.15", fc="black", alpha=0.65),
                         ha="center", va="bottom", zorder=5)
 
+    # Block HQ stars
     bc = df.groupby("block_id")[["lon", "lat"]].mean()
     ax.scatter(bc["lon"], bc["lat"], s=90, marker="*", c="red",
                edgecolor="black", zorder=4)
 
-    fig.colorbar(ScalarMappable(norm=cf.norm, cmap=cmap), ax=ax).set_label(label)
+    # Colorbar
+    if cf is not None:
+        fig.colorbar(ScalarMappable(norm=cf.norm, cmap=cmap), ax=ax).set_label(label)
+    else:
+        fig.colorbar(ScalarMappable(cmap=cmap), ax=ax).set_label(label)
+
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     ax.set_title(f"Panchayat {var.upper()} — Downscaled\n{DISTRICT_LABEL}", fontsize=11)
