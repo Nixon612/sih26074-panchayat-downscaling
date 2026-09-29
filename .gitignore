@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+.venv-wsl/
+venv/
+env/
+
+# Environment secrets
+.env
+
+# Data files (regenerate via scripts)
+data/raw/*.parquet
+data/raw/*.geojson*
+data/raw/*.shp
+data/raw/*.dbf
+data/raw/*.shx
+data/processed/*.csv
+data/raw/mosdac/
+
+# Model artifacts (regenerate via train_model.py)
+models/*.joblib
+models/*.json
+
+# Generated plots
+static/plots/*.png
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

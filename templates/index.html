@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SIH26074 — Panchayat Agro-Met Advisory</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🌾</span>
+      <div>
+        <h1>Panchayat Agro-Met Advisory</h1>
+        <p class="sub">SIH26074 · MoES · Kamrup District, Assam</p>
+      </div>
+    </div>
+    <div class="meta">
+      <span>{{ now }}</span>
+      <button id="refresh-btn" class="btn">↻ Refresh</button>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="panel map-panel">
+      <div class="controls">
+        <label>Crop
+          <select id="crop-select">
+            <option value="">General</option>
+            <option value="rice">Rice</option>
+            <option value="wheat">Wheat</option>
+            <option value="cotton">Cotton</option>
+            <option value="sugarcane">Sugarcane</option>
+          </select>
+        </label>
+        <button id="apply-btn" class="btn primary">Apply</button>
+      </div>
+      <div id="map"></div>
+      <div class="plots">
+        <h3>Downscaled Contour Layers</h3>
+        <div id="plot-tabs" class="tabs"></div>
+        <img id="plot-img" alt="contour" />
+      </div>
+    </section>
+    <aside class="panel side-panel">
+      <div class="summary" id="summary"><div class="loading">Loading…</div></div>
+      <div class="search-wrap">
+        <input id="search-box" type="text" placeholder="🔍 Search panchayat or block…" />
+      </div>
+      <div class="reports" id="reports"></div>
+    </aside>
+  </main>
+  <footer class="footer">
+    <span>Ingest → Downscale → Advise → Serve</span>
+    <span id="source-tag"></span>
+  </footer>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

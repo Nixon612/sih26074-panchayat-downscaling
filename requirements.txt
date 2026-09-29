@@ -1,0 +1,11 @@
+flask
+pandas
+numpy
+scikit-learn
+joblib
+requests
+python-dotenv
+matplotlib
+geopandas
+pyarrow
+shapely
