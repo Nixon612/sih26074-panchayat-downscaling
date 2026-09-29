@@ -63,6 +63,25 @@ def api_refresh():
 def plots(f):
     return send_from_directory("static/plots", f)
 
+import threading
+
+_warmup_started = False
+
+def _warmup_pipeline():
+    """Run the pipeline once in the background when the server boots."""
+    global _warmup_started
+    if _warmup_started:
+        return
+    _warmup_started = True
+    try:
+        print("[warmup] Running pipeline in background...")
+        reports = run_pipeline(DEFAULT_BLOCKS, crop=None)
+        cset(f"r:{','.join(DEFAULT_BLOCKS)}:g", reports)
+        print(f"[warmup] Done — cached {len(reports)} reports")
+    except Exception as e:
+        print(f"[warmup] Failed: {e}")
+
+threading.Thread(target=_warmup_pipeline, daemon=True).start()
 if __name__ == "__main__":
     os.makedirs("static/plots", exist_ok=True)
     app.run(host="0.0.0.0", port=5000, debug=True)

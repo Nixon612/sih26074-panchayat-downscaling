@@ -10,8 +10,8 @@ function initMap() {
   }
   try {
     map = L.map("map").setView([26.2, 91.0], 9);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { attribution: '&copy; OSM &copy; CARTO', maxZoom: 18 }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { attribution: '&copy; OpenStreetMap contributors', maxZoom: 18 }).addTo(map);
     lg = L.layerGroup().addTo(map);
   } catch (e) {
     el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b98a5;font-size:13px">Map unavailable</div>';
