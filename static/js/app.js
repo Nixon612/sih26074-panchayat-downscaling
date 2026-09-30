@@ -80,6 +80,7 @@ function renderReports(reports) {
     el.appendChild(c);
   });
 }
+
 function showDetail(r) {
   const advs = (r.advisories || []).map(a =>
     `<div class="adv ${a.severity}"><b>${a.category} · ${a.severity} · ${a.rule_id}</b><br>${a.message}</div>`
@@ -93,7 +94,6 @@ function showDetail(r) {
       <div style="font-size:10px;color:var(--muted);margin-bottom:4px">LGD: ${r.panchayat_id} · ${block}</div>
       <div class="weather">(${r.lat.toFixed(3)}, ${r.lon.toFixed(3)})</div>${advs}
     </div>`;
-
   const backBtn = el.querySelector(".back-btn");
   if (backBtn) {
     backBtn.onclick = () => {
@@ -103,7 +103,6 @@ function showDetail(r) {
     };
   }
 }
-
 
 function renderSummary(reports, source) {
   const c = { critical:0, warning:0, info:0 };
@@ -147,26 +146,43 @@ async function loadReports(force = false) {
   const crop = document.getElementById("crop-select").value;
   const btn = document.getElementById("apply-btn");
   btn.disabled = true; btn.textContent = "Running…";
-  try {
-    if (force) {
-      const r = await fetch("/api/refresh", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ crop: crop || null })
-      });
-      if (!r.ok) throw new Error(await r.text());
+
+  const attempt = async (n) => {
+    try {
+      if (force && n === 1) {
+        const r = await fetch("/api/refresh", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ crop: crop || null })
+        });
+        if (!r.ok) throw new Error("refresh " + r.status);
+      }
+      const res = await fetch(`/api/reports?crop=${encodeURIComponent(crop)}`);
+      if (!res.ok) throw new Error("reports " + res.status);
+      const data = await res.json();
+      allReports = data.reports;
+      const sb = document.getElementById("search-box");
+      if (sb) sb.value = "";
+      drawMarkers(allReports);
+      renderReports(allReports);
+      renderSummary(allReports, data.source);
+      document.getElementById("plot-img").src =
+        `/plots/contour_${TARGETS[0]}.png?t=${Date.now()}`;
+      return true;
+    } catch (e) {
+      if (n < 3) {
+        document.getElementById("summary").innerHTML =
+          `<div class="loading">Loading… retry ${n}/3</div>`;
+        await new Promise(r => setTimeout(r, 4000));
+        return attempt(n + 1);
+      }
+      document.getElementById("summary").innerHTML =
+        `<div class="loading" style="color:var(--crit)">Could not load — tap ↻ Refresh</div>`;
+      return false;
     }
-    const res = await fetch(`/api/reports?crop=${encodeURIComponent(crop)}`);
-    const data = await res.json();
-    allReports = data.reports;
-    const sb = document.getElementById("search-box");
-    if (sb) sb.value = "";
-    drawMarkers(allReports);
-    renderReports(allReports);
-    renderSummary(allReports, data.source);
-    document.getElementById("plot-img").src =
-      `/plots/contour_${TARGETS[0]}.png?t=${Date.now()}`;
-  } catch (e) {
-    document.getElementById("summary").innerHTML = `<div class="loading" style="color:var(--crit)">Error: ${e.message}</div>`;
+  };
+
+  try {
+    await attempt(1);
   } finally {
     btn.disabled = false; btn.textContent = "Apply";
   }
@@ -189,8 +205,6 @@ window.addEventListener("DOMContentLoaded", () => {
       renderReports(filtered);
       drawMarkers(filtered);
     });
-  } else {
-    console.warn("Search box element #search-box not found in DOM");
   }
 
   loadReports(true);
