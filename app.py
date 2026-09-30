@@ -52,11 +52,40 @@ def get_downscaled_data():
 
 
 def run_pipeline(blocks, crop=None):
-    """Cheap stage: run advisor on cached downscaled data."""
+    """Cheap stage: advisor on cached downscaled data."""
     ds = get_downscaled_data()
     return json.loads(to_json(advise_all(ds, crop=crop)))
 
 
+# ---------- Lazy warmup — triggered on first request, not at import ----------
+_warmed = False
+
+
+def _ensure_warmup():
+    global _warmed
+    if _warmed:
+        return
+    print("[warmup] Running full pipeline...")
+    try:
+        ds = get_downscaled_data()
+        for crop in [None, "rice", "wheat", "cotton", "sugarcane"]:
+            reports = json.loads(to_json(advise_all(ds, crop=crop)))
+            cset(f"r:default:{crop or 'g'}", reports)
+        _warmed = True
+        print("[warmup] Done — cached 5 crop variants")
+    except Exception as e:
+        print(f"[warmup] Failed: {e}")
+
+
+@app.before_request
+def _trigger_warmup():
+    # Skip warmup for static assets so page loads don't block
+    if request.path.startswith("/static") or request.path.startswith("/plots"):
+        return
+    _ensure_warmup()
+
+
+# ---------- Routes ----------
 @app.route("/")
 def index():
     return render_template(
@@ -86,12 +115,10 @@ def api_refresh():
     crop = body.get("crop")
     key = f"r:default:{crop or 'g'}"
 
-    # Cache hit — return immediately
     reports = cget(key)
     if reports:
         return jsonify({"status": "ok", "source": "cache", "count": len(reports)})
 
-    # Cache miss — run cheap advisor pass on cached downscaled data
     t0 = time.time()
     reports = run_pipeline(DEFAULT_BLOCKS, crop=crop)
     cset(key, reports)
@@ -109,6 +136,7 @@ def api_health():
         "status": "ok",
         "model_present": os.path.exists("models/rf_downscaler.joblib"),
         "downscaled_cached": cget("downscaled_records") is not None,
+        "warmed": _warmed,
         "time_utc": datetime.utcnow().isoformat() + "Z",
     })
 
@@ -121,31 +149,6 @@ def serve_plot(f):
 @app.route("/static/<path:filename>")
 def static_files(filename):
     return send_from_directory("static", filename)
-
-
-# ---------- Background warmup on boot ----------
-import threading
-
-_warmup_started = False
-
-
-def _warmup_pipeline():
-    global _warmup_started
-    if _warmup_started:
-        return
-    _warmup_started = True
-    try:
-        print("[warmup] Running full pipeline in background...")
-        ds = get_downscaled_data()
-        for crop in [None, "rice", "wheat", "cotton", "sugarcane"]:
-            reports = json.loads(to_json(advise_all(ds, crop=crop)))
-            cset(f"r:default:{crop or 'g'}", reports)
-        print("[warmup] Done — cached reports for 5 crop variants")
-    except Exception as e:
-        print(f"[warmup] Failed: {e}")
-
-
-threading.Thread(target=_warmup_pipeline, daemon=True).start()
 
 
 if __name__ == "__main__":
